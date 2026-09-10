@@ -44,17 +44,13 @@ actual fun userDatabaseBuilder(
     if (storageData !is StorageData.FileBacked) {
         throw IllegalStateException("Unsupported storage data type: $storageData")
     }
-    // An empty passphrase asks for a plain database, which is what the backup export creates.
-    if (passphrase != null && passphrase.value.isNotEmpty()) {
-        throw NotImplementedError("Encrypted DB is not supported on JVM")
-    }
 
     val schema = UserDatabase.Schema.synchronous()
     val databaseFile = userDatabaseFile(storageData.file, userId)
 
     // Make sure all intermediate directories exist
     storageData.file.mkdirs()
-    val rawDriver: SqlDriver = databaseDriver(uri = jdbcUrl(databaseFile), schema = schema) {
+    val rawDriver: SqlDriver = databaseDriver(uri = jdbcUrl(databaseFile), schema = schema, passphrase = passphrase?.value) {
         isWALEnabled = enableWAL
         areForeignKeyConstraintsEnforced = true
     }
@@ -84,7 +80,7 @@ actual fun userDatabaseDriverByPath(
     path: String,
     passphrase: UserDBSecret?,
     enableWAL: Boolean
-): SqlDriver = databaseDriver(uri = jdbcUrl(File(path))) {
+): SqlDriver = databaseDriver(uri = jdbcUrl(File(path)), passphrase = passphrase?.value) {
     isWALEnabled = enableWAL
     areForeignKeyConstraintsEnforced = true
 }

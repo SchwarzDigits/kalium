@@ -250,7 +250,8 @@ class UpdateConversationReadDateUseCaseIntegrationTest {
                 userId = userId,
                 platformUserStorageProperties = PlatformUserStorageProperties(
                     rootPath = "",
-                    databaseInfo = DatabaseStorageType.InMemory
+                    databaseInfo = DatabaseStorageType.InMemory,
+                    userDbSecretProvider = { error("In-memory databases are not encrypted") }
                 ),
                 shouldEncryptData = false,
                 dbInvalidationControlEnabled = false

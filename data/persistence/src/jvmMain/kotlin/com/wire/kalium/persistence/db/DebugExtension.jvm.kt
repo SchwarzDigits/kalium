@@ -17,6 +17,4 @@
  */
 package com.wire.kalium.persistence.db
 
-internal actual fun platformDatabaseLogger(): String {
-    TODO("Not yet implemented")
-}
+internal actual fun platformDatabaseLogger(): String = "stdout"

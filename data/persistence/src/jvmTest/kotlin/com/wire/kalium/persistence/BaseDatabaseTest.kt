@@ -40,7 +40,9 @@ import kotlin.test.BeforeTest
 actual open class BaseDatabaseTest actual constructor() {
 
     protected actual val dispatcher: TestDispatcher = StandardTestDispatcher()
-    actual val encryptedDBSecret = UserDBSecret("db_secret".toByteArray())
+
+    // Same shape as the raw keys Kalium generates, so the tests skip the key derivation.
+    actual val encryptedDBSecret = UserDBSecret("x'${"0123456789abcdef".repeat(4)}'".toByteArray())
 
     // One folder for all users, like Android's databases folder: the backup export creates its database
     // next to the user's, and the tests open it again by user id.
@@ -82,7 +84,7 @@ actual open class BaseDatabaseTest actual constructor() {
         return userDatabaseBuilder(
             platformDatabaseData = platformDBData(userId),
             userId = userId,
-            passphrase = null,
+            passphrase = passphrase,
             dispatcher = dispatcher,
             enableWAL = enableWAL,
             dbInvalidationControlEnabled = dbInvalidationControlEnabled

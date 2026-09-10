@@ -38,7 +38,8 @@ class UserStorageProviderTest {
     )
     private val testProperties = PlatformUserStorageProperties(
         rootPath = "test-root",
-        databaseInfo = DatabaseStorageType.InMemory
+        databaseInfo = DatabaseStorageType.InMemory,
+        userDbSecretProvider = { error("In-memory databases are not encrypted") }
     )
     private val testUserIdEntity = UserIDEntity(testUserId.value, testUserId.domain)
 

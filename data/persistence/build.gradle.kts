@@ -89,8 +89,13 @@ kotlin {
         }
         val jvmMain by getting {
             dependencies {
-                implementation(libs.sqldelight.jvmDriver)
-                implementation(libs.sqlite.xerialDriver)
+                val sqldelightJvmDriver = libs.sqldelight.jvmDriver.get()
+                implementation("${sqldelightJvmDriver.module}:${sqldelightJvmDriver.version}") {
+                    // SQLite3 Multiple Ciphers ships as a fork of xerial's driver in the same org.sqlite
+                    // package, so xerial's must not end up next to it on the classpath.
+                    exclude(group = "org.xerial", module = "sqlite-jdbc")
+                }
+                implementation(libs.sqlite.mcJdbcDriver)
             }
         }
         val jvmTest by getting {

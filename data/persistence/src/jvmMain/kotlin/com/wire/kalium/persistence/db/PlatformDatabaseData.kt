@@ -23,12 +23,16 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.db.SqlSchema
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import org.sqlite.SQLiteConfig
+import org.sqlite.mc.SQLiteMCConfig
+import org.sqlite.mc.SQLiteMCSqlCipherConfig
 import java.io.File
 import java.util.Properties
 
 // Another process, or a second SDK instance on the same file, waits this long for SQLite's lock
 // instead of failing right away.
 private const val BUSY_TIMEOUT_MILLIS = 5_000
+private const val FIRST_PRINTABLE_ASCII = 0x20
+private const val LAST_PRINTABLE_ASCII = 0x7E
 
 actual data class PlatformDatabaseData(
     val storageData: StorageData
@@ -46,6 +50,10 @@ sealed interface StorageData {
  * databases keep SQLDelight's single-connection driver: every new connection to them would be a new,
  * empty database.
  *
+ * Connections use SQLCipher's scheme, version 4, also for encrypted databases they attach
+ * (`ATTACH ... KEY`), so the files have the same format as the SQLCipher databases on Android.
+ * [passphrase] encrypts the database itself; `null` or empty leaves it unencrypted.
+ *
  * Behavior:
  * - When [schema] is provided: SQLDelight will create or migrate the database to [schema.version]
  *   and update `PRAGMA user_version`.
@@ -58,9 +66,10 @@ sealed interface StorageData {
 fun databaseDriver(
     uri: String,
     schema: SqlSchema<QueryResult.Value<Unit>>? = null,
+    passphrase: ByteArray? = null,
     config: DriverConfigurationBuilder.() -> Unit = {}
 ): SqlDriver {
-    val properties = connectionProperties(DriverConfigurationBuilder().apply(config))
+    val properties = connectionProperties(DriverConfigurationBuilder().apply(config), passphrase)
     return when {
         !isInMemory(uri) -> PooledJdbcSqliteDriver(uri, properties).also { driver ->
             schema?.let { driver.createOrMigrate(it) }
@@ -70,12 +79,26 @@ fun databaseDriver(
     }
 }
 
-private fun connectionProperties(configuration: DriverConfigurationBuilder): Properties =
-    SQLiteConfig().apply {
+private fun connectionProperties(configuration: DriverConfigurationBuilder, passphrase: ByteArray?): Properties {
+    val cipherConfig: SQLiteMCConfig.Builder = SQLiteMCSqlCipherConfig.getV4Defaults().let { config ->
+        if (passphrase == null || passphrase.isEmpty()) config else config.withPassphrase(passphrase)
+    }
+    return cipherConfig.build().apply {
         setJournalMode(if (configuration.isWALEnabled) SQLiteConfig.JournalMode.WAL else SQLiteConfig.JournalMode.DELETE)
         enforceForeignKeys(configuration.areForeignKeyConstraintsEnforced)
         busyTimeout = BUSY_TIMEOUT_MILLIS
     }.toProperties()
+}
+
+/**
+ * Kalium's keys are raw keys in SQLCipher's syntax, `x'<hex>'`: plain ASCII that SQLite3 Multiple Ciphers,
+ * like SQLCipher, takes as the key itself, without key derivation. Other bytes go over as hex, so no
+ * charset conversion can alter them.
+ */
+private fun SQLiteMCConfig.Builder.withPassphrase(passphrase: ByteArray): SQLiteMCConfig.Builder =
+    if (passphrase.isPrintableAscii()) withKey(passphrase.decodeToString()) else withHexKey(passphrase)
+
+private fun ByteArray.isPrintableAscii(): Boolean = all { it.toInt() in FIRST_PRINTABLE_ASCII..LAST_PRINTABLE_ASCII }
 
 // The rules SQLDelight's JdbcSqliteDriver uses to pick its single-connection mode.
 private fun isInMemory(url: String): Boolean {

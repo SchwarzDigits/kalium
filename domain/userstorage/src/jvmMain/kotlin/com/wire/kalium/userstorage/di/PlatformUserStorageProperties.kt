@@ -18,11 +18,14 @@
 
 package com.wire.kalium.userstorage.di
 
+import com.wire.kalium.logic.data.user.UserId
+import com.wire.kalium.persistence.db.UserDBSecret
 import java.io.File
 
 public actual class PlatformUserStorageProperties(
     public val rootPath: String,
-    internal val databaseInfo: DatabaseStorageType
+    internal val databaseInfo: DatabaseStorageType,
+    internal val userDbSecretProvider: (UserId) -> UserDBSecret
 )
 
 public sealed interface DatabaseStorageType {

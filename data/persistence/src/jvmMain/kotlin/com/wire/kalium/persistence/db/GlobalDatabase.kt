@@ -39,17 +39,12 @@ actual fun globalDatabaseProvider(
         throw IllegalStateException("Unsupported storage data type: $storageData")
     }
 
-    if (passphrase != null) {
-        throw NotImplementedError("Encrypted DB is not supported on JVM")
-    }
-
     val schema = GlobalDatabase.Schema.synchronous()
-    val databasePath = storageData.file.resolve(FileNameUtil.globalDBName())
+    val databaseFile = storageData.file.resolve(FileNameUtil.globalDBName())
 
     // Make sure all intermediate directories exist
     storageData.file.mkdirs()
-    val url = "jdbc:sqlite:${databasePath.absolutePath}"
-    val driver = databaseDriver(uri = url, schema = schema) {
+    val driver = databaseDriver(uri = jdbcUrl(databaseFile), schema = schema, passphrase = passphrase?.value) {
         isWALEnabled = enableWAL
         areForeignKeyConstraintsEnforced = true
     }

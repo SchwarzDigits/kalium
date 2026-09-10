@@ -29,7 +29,9 @@ import com.wire.kalium.logic.featureFlags.KaliumConfigs
 import com.wire.kalium.logic.network.NetworkStateObserverImpl
 import com.wire.kalium.logic.sync.WorkSchedulerProvider
 import com.wire.kalium.logic.sync.WorkSchedulerProviderImpl
+import com.wire.kalium.logic.util.DatabaseKeyLock
 import com.wire.kalium.logic.util.PlatformContext
+import com.wire.kalium.logic.util.SecurityHelperImpl
 import com.wire.kalium.network.NetworkStateObserver
 import com.wire.kalium.persistence.db.GlobalDatabaseBuilder
 import com.wire.kalium.persistence.db.PlatformDatabaseData
@@ -64,17 +66,28 @@ public actual class CoreLogic(
             shouldEncryptData = kaliumConfigs.shouldEncryptData()
         )
 
-    actual override val globalDatabaseBuilder: GlobalDatabaseBuilder = globalDatabaseProvider(
-        platformDatabaseData = PlatformDatabaseData(
-            storageData = if (useInMemoryStorage) {
-                StorageData.InMemory
+    private val securityHelper = SecurityHelperImpl(globalPreferences.passphraseStorage)
+
+    // Choosing the key and the first open, which may encrypt an existing plaintext file, run under one
+    // lock so a second SDK instance can't work on the same file at the same time.
+    actual override val globalDatabaseBuilder: GlobalDatabaseBuilder = DatabaseKeyLock.withLock {
+        globalDatabaseProvider(
+            platformDatabaseData = PlatformDatabaseData(
+                storageData = if (useInMemoryStorage) {
+                    StorageData.InMemory
+                } else {
+                    StorageData.FileBacked(File("$rootPath/global-storage"))
+                }
+            ),
+            // JVM databases were never encrypted before, so there is no legacy key to migrate from.
+            passphrase = if (kaliumConfigs.shouldEncryptData() && !useInMemoryStorage) {
+                securityHelper.globalDBKeyMaterial(databaseExists = false).rawKey
             } else {
-                StorageData.FileBacked(File("$rootPath/global-storage"))
-            }
-        ),
-        passphrase = null,
-        queriesContext = KaliumDispatcherImpl.io
-    )
+                null
+            },
+            queriesContext = KaliumDispatcherImpl.io
+        )
+    }
 
     public actual override fun getSessionScope(userId: UserId): UserSessionScope =
         userSessionScopeProvider.value.getOrCreate(userId)

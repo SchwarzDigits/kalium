@@ -31,8 +31,11 @@ import com.wire.kalium.logic.feature.auth.AuthenticationScopeProvider
 import com.wire.kalium.logic.feature.auth.LogoutCallback
 import com.wire.kalium.logic.feature.call.GlobalCallManager
 import com.wire.kalium.logic.featureFlags.KaliumConfigs
+import com.wire.kalium.logic.util.DatabaseKeyLock
+import com.wire.kalium.logic.util.SecurityHelperImpl
 import com.wire.kalium.network.NetworkStateObserver
 import com.wire.kalium.persistence.db.GlobalDatabaseBuilder
+import com.wire.kalium.persistence.db.UserDBSecret
 import com.wire.kalium.persistence.kmmSettings.GlobalPrefProvider
 import com.wire.kalium.usernetwork.di.UserAuthenticatedNetworkProvider
 import com.wire.kalium.userstorage.di.DatabaseStorageType
@@ -63,6 +66,8 @@ internal actual open class UserSessionScopeProviderImpl(
 ),
     UserSessionScopeProvider {
 
+    private val securityHelper = SecurityHelperImpl(globalPreferences.passphraseStorage)
+
     override fun create(userId: UserId): UserSessionScope {
         val rootAccountPath = rootPathsProvider.rootAccountPath(userId)
         val rootStoragePath = "$rootAccountPath/storage"
@@ -78,7 +83,7 @@ internal actual open class UserSessionScopeProviderImpl(
         val dbPath = DBFolder("$rootAccountPath/database")
         val dataStoragePaths = DataStoragePaths(rootFileSystemPath, rootCachePath, dbPath)
         return UserSessionScope(
-            PlatformUserStorageProperties(rootPathsProvider.rootPath, databaseInfo),
+            PlatformUserStorageProperties(rootPathsProvider.rootPath, databaseInfo, ::userDBSecret),
             userId,
             globalScope,
             globalCallManager,
@@ -96,4 +101,8 @@ internal actual open class UserSessionScopeProviderImpl(
             userAgent
         )
     }
+
+    // JVM user databases were never encrypted before, so there is no legacy key to carry over.
+    private fun userDBSecret(userId: UserId): UserDBSecret =
+        DatabaseKeyLock.withLock { securityHelper.userDBSecret(userId, databaseExists = false) }
 }

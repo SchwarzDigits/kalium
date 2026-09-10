@@ -21,6 +21,7 @@ import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import org.sqlite.SQLiteConfig
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.AfterTest
@@ -123,13 +124,13 @@ abstract class SchemaMigrationTest {
             }
         }
 
+        // Foreign keys stay off: the fixtures insert content rows without their parent messages. The
+        // `PRAGMA foreign_keys = ON` that used to be here never took effect, because this driver opens
+        // a new connection for every statement; SQLite3 Multiple Ciphers turns them on by default.
+        val properties = SQLiteConfig().apply { enforceForeignKeys(false) }.toProperties()
+
         // Create a JDBC SQLite driver pointing to the temporary database
-        val driver = JdbcSqliteDriver("jdbc:sqlite:${tempDbFile.absolutePath}")
-
-        // Enable foreign keys for accurate migration testing
-        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
-
-        return driver
+        return JdbcSqliteDriver("jdbc:sqlite:${tempDbFile.absolutePath}", properties)
     }
 
     /**

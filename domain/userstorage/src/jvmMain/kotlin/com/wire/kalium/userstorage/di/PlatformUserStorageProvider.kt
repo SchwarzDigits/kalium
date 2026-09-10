@@ -38,11 +38,15 @@ public actual class PlatformUserStorageProvider : UserStorageProvider() {
         val databaseInfo = platformProperties.databaseInfo
         val database = when (databaseInfo) {
             is DatabaseStorageType.FiledBacked -> {
-                val storageData = StorageData.FileBacked(databaseInfo.filePath)
+                val databasePassphrase = if (shouldEncryptData) {
+                    platformProperties.userDbSecretProvider(userId)
+                } else {
+                    null
+                }
                 userDatabaseBuilder(
-                    platformDatabaseData = PlatformDatabaseData(storageData),
+                    platformDatabaseData = PlatformDatabaseData(StorageData.FileBacked(databaseInfo.filePath)),
                     userId = userIdEntity,
-                    passphrase = null,
+                    passphrase = databasePassphrase,
                     dispatcher = KaliumDispatcherImpl.io,
                     enableWAL = true,
                     dbInvalidationControlEnabled = dbInvalidationControlEnabled
