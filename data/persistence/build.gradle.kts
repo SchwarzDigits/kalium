@@ -96,6 +96,8 @@ kotlin {
                     exclude(group = "org.xerial", module = "sqlite-jdbc")
                 }
                 implementation(libs.sqlite.mcJdbcDriver)
+                // System key stores (macOS Keychain, …) for the settings master key
+                implementation(libs.jna)
             }
         }
         val jvmTest by getting {
