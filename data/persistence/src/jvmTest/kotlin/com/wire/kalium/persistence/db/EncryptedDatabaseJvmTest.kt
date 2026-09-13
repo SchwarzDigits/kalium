@@ -78,6 +78,30 @@ class EncryptedDatabaseJvmTest {
         assertFalse(databaseFile.hasSqliteHeader())
     }
 
+    // The fixture was written by SQLCipher 4.5.6 (Ubuntu 24.04's sqlcipher) with PRAGMA key = "<RAW_KEY>",
+    // CREATE TABLE fixture(v TEXT NOT NULL) and INSERT INTO fixture VALUES ('written by SQLCipher').
+    // Reading it pins the JVM driver's settings and its raw-key handling to SQLCipher's.
+    @Test
+    fun givenDatabaseWrittenBySqlCipher_whenOpenedWithTheRawKey_thenItsRowsArrive() {
+        val file = directory.resolve("sqlcipher.db")
+        val fixture = assertNotNull(javaClass.getResourceAsStream("/$SQLCIPHER_FIXTURE"))
+        fixture.use { input -> file.outputStream().use { input.copyTo(it) } }
+        assertFalse(file.hasSqliteHeader())
+
+        val driver = databaseDriver(uri = jdbcUrl(file), passphrase = RAW_KEY.value)
+        try {
+            val value = driver.executeQuery(
+                identifier = null,
+                sql = "SELECT v FROM fixture",
+                mapper = { cursor -> QueryResult.Value(if (cursor.next().value) cursor.getString(0) else null) },
+                parameters = 0
+            ).value
+            assertEquals("written by SQLCipher", value)
+        } finally {
+            driver.close()
+        }
+    }
+
     @Test
     fun givenEncryptedDatabase_whenBackupIsExportedAndDeleted_thenTheUserDatabaseIsUntouched() = runTest {
         val database = openDatabase(RAW_KEY)
@@ -160,6 +184,7 @@ class EncryptedDatabaseJvmTest {
 
     private companion object {
         const val MARKER = "plaintext-marker-4711"
+        const val SQLCIPHER_FIXTURE = "sqlcipher-v4-raw-key.db"
         val RAW_KEY = UserDBSecret("x'${"ab".repeat(32)}'".toByteArray())
         val OTHER_RAW_KEY = UserDBSecret("x'${"cd".repeat(32)}'".toByteArray())
         val SQLITE_HEADER = "SQLite format 3\u0000".encodeToByteArray()
