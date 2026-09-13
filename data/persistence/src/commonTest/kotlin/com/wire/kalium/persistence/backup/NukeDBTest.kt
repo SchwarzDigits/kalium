@@ -44,7 +44,8 @@ class NukeDBTest : BaseDatabaseTest() {
 
     @Test
     fun givenDB_whenDeleted_thenItIsDeleted() {
-        assertTrue { nuke(selfUserId, platformDatabaseData = platformDBData(selfUserId)) }
+        // Closes the database before deleting it, as the app does; Windows can't delete an open file.
+        assertTrue { localDB.nuke() }
         assertFalse { doesDatabaseExist(selfUserId) }
     }
 
