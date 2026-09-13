@@ -68,8 +68,8 @@ public actual class CoreLogic(
 
     private val securityHelper = SecurityHelperImpl(globalPreferences.passphraseStorage)
 
-    // Choosing the key and the first open, which may encrypt an existing plaintext file, run under one
-    // lock so a second SDK instance can't work on the same file at the same time.
+    // Choosing the key and the first open run under one lock, so a second SDK instance can't create a
+    // different key for the same file in between.
     actual override val globalDatabaseBuilder: GlobalDatabaseBuilder = DatabaseKeyLock.withLock {
         globalDatabaseProvider(
             platformDatabaseData = PlatformDatabaseData(
