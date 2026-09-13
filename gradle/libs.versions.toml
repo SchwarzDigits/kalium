@@ -52,7 +52,7 @@ pbandk = "0.16.0"
 turbine = "1.1.0"
 avs = "10.5.10"
 jna = "5.17.0"
-core-crypto = "10.5.1"
+core-crypto = "10.5.2-digits.1"
 desugar-jdk = "2.1.5"
 kermit = "2.1.0"
 detekt = "1.23.8"
@@ -165,9 +165,9 @@ coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", ve
 
 # cryptobox and crypto dependencies
 androidCrypto = { module = "androidx.security:security-crypto-ktx", version.ref = "android-security" }
-coreCryptoJvm = { module = "com.wire:core-crypto-jvm", version.ref = "core-crypto" }
-coreCryptoAndroid = { module = "com.wire:core-crypto-android", version.ref = "core-crypto" }
-coreCryptoKmp = { module = "com.wire:core-crypto-kmp", version.ref = "core-crypto" }
+coreCryptoJvm = { module = "schwarz.opensource.natrium:core-crypto-kmp-jvm", version.ref = "core-crypto" }
+coreCryptoAndroid = { module = "schwarz.opensource.natrium:core-crypto-kmp-android", version.ref = "core-crypto" }
+coreCryptoKmp = { module = "schwarz.opensource.natrium:core-crypto-kmp", version.ref = "core-crypto" }
 libsodiumBindingsMP = { module = "com.ionspin.kotlin:multiplatform-crypto-libsodium-bindings", version.ref = "libsodiumBindings" }
 bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 
