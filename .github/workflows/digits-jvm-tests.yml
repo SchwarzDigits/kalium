@@ -1,0 +1,89 @@
+# Schwarz Digits fork: runs the JVM tests of the database, settings and CoreCrypto code on
+# Windows, Linux and macOS. Needs no secrets. Wire's own workflows are separate.
+name: Digits JVM tests
+
+on:
+  push:
+    branches: ['digits/**']
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: digits-jvm-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Apple targets can't be built on Windows and Linux; only JVM tasks run here.
+  TASKS: >-
+    :tools:protobuf-codegen:generateProto
+    :data:persistence:jvmTest
+    :domain:userstorage:jvmTest
+    :core:cryptography:jvmTest
+    -Pkotlin.native.ignoreDisabledTargets=true
+
+jobs:
+  jvm-tests:
+    name: JVM tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - name: Allow long paths (Windows)
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        with:
+          cache-provider: basic
+
+      - name: Install a Secret Service (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends gnome-keyring dbus-x11 libsecret-1-0
+
+      # The libsecret tests run only with KALIUM_TEST_SECRET_SERVICE=true and an unlocked keyring in
+      # the same D-Bus session as Gradle.
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        env:
+          KALIUM_TEST_SECRET_SERVICE: "true"
+        run: |
+          # $TASKS expands in the inner shell, inside the D-Bus session.
+          # shellcheck disable=SC2016
+          dbus-run-session -- bash -c 'echo -n ci | gnome-keyring-daemon --unlock --components=secrets >/dev/null && ./gradlew --no-daemon --continue $TASKS'
+
+      - name: Test (Windows, macOS)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          # TASKS is a list of Gradle arguments.
+          # shellcheck disable=SC2086
+          ./gradlew --no-daemon --continue $TASKS
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: test-results-${{ matrix.os }}
+          path: '**/build/test-results/jvmTest/*.xml'
+          if-no-files-found: warn
