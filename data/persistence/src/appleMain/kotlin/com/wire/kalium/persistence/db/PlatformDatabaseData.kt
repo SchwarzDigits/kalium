@@ -31,7 +31,6 @@ import platform.posix.fopen
 import platform.posix.fputs
 import platform.posix.getenv
 
-// TODO encrypt database using sqlcipher
 actual data class PlatformDatabaseData(
     val storageData: StorageData,
     val useGradleSafeSqliterLogging: Boolean = false
@@ -42,13 +41,19 @@ sealed class StorageData {
     data object InMemory : StorageData()
 }
 
+/**
+ * @param passphrase encrypts the database with SQLCipher, see [SqlCipherKey]. Null leaves it unencrypted.
+ */
+@Suppress("LongParameterList")
 fun databaseDriver(
     driverUri: String?,
     dbName: String,
     schema: SqlSchema<QueryResult.Value<Unit>>,
+    passphrase: ByteArray? = null,
     config: DriverConfigurationBuilder.() -> Unit = {}
 ): SqlDriver {
     val driverConfiguration = DriverConfigurationBuilder().apply(config)
+    val sqlCipherKey = passphrase?.let(::SqlCipherKey)
     val inMemory = driverUri == null
     val configuration = DatabaseConfiguration(
         name = dbName,
@@ -72,6 +77,9 @@ fun databaseDriver(
         ) else DatabaseConfiguration.Extended(
             basePath = driverUri,
             foreignKeyConstraints = driverConfiguration.areForeignKeyConstraintsEnforced
+        ),
+        lifecycleConfig = DatabaseConfiguration.Lifecycle(
+            onCreateConnection = { connection -> sqlCipherKey?.applyTo(connection) }
         )
     )
     return NativeSqliteDriver(configuration, maxReaderConnections = NATIVE_MAX_READER_CONNECTIONS)

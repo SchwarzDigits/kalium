@@ -121,5 +121,12 @@ kotlin {
                 implementation(libs.sqldelight.nativeDriver)
             }
         }
+        val appleTest by getting {
+            dependencies {
+                // On Apple, SQLCipher comes with CoreCrypto's library (see SqlCipherKey). The tests link it the
+                // way apps using Kalium do.
+                implementation(libs.coreCryptoKmp)
+            }
+        }
     }
 }

@@ -37,7 +37,10 @@ import platform.Foundation.NSUserDomainMask
 actual open class BaseDatabaseTest actual constructor() {
 
     protected actual val dispatcher: TestDispatcher = StandardTestDispatcher()
-    actual val encryptedDBSecret = UserDBSecret(ByteArray(0))
+
+    // A raw key, like the ones the SDK gives new databases. A passphrase would run SQLCipher's key
+    // derivation on every connection.
+    actual val encryptedDBSecret = UserDBSecret("x'${"42".repeat(32)}'".encodeToByteArray())
 
     private var storePath = NSFileManager.defaultManager
         .URLForDirectory(NSCachesDirectory, NSUserDomainMask, null, true, null)!!
@@ -53,7 +56,7 @@ actual open class BaseDatabaseTest actual constructor() {
 
     actual fun doesDatabaseExist(
         userId: UserIDEntity
-    ): Boolean = TODO("not implemented")
+    ): Boolean = NSFileManager.defaultManager.fileExistsAtPath(databasePath(userId))
 
     actual fun deleteDatabase(userId: UserIDEntity) {
         deleteDatabase(FileNameUtil.userDBName(userId), storePath)
@@ -68,9 +71,9 @@ actual open class BaseDatabaseTest actual constructor() {
         return userDatabaseBuilder(
             platformDBData(userId),
             userId,
-            null,
+            passphrase,
             dispatcher,
-            false,
+            enableWAL,
             dbInvalidationControlEnabled
         )
     }
