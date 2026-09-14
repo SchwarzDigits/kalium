@@ -70,7 +70,7 @@ internal fun encryptPlaintextDatabase(
     check(canOpen(directory, copyName, key, JournalMode.DELETE)) {
         "The encrypted copy of an unencrypted database doesn't open with its key"
     }
-    deleteSideFiles(directory, name)
+    deleteJournalFiles(directory, name)
     check(rename("$directory/$copyName", "$directory/$name") == 0) {
         "Could not replace an unencrypted database with its encrypted copy"
     }
@@ -125,17 +125,6 @@ private fun isNonEmptyFile(path: String): Boolean {
     return (size?.longLongValue ?: 0L) > 0L
 }
 
-private fun deleteDatabaseFiles(directory: String, name: String) {
-    NSFileManager.defaultManager.removeItemAtPath("$directory/$name", null)
-    deleteSideFiles(directory, name)
-}
-
-private fun deleteSideFiles(directory: String, name: String) {
-    SIDE_FILE_SUFFIXES.forEach { suffix ->
-        NSFileManager.defaultManager.removeItemAtPath("$directory/$name$suffix", null)
-    }
-}
-
 private fun String.toSqlLiteral(): String = "'${replace("'", "''")}'"
 
 private object SilentLogger : Logger {
@@ -147,4 +136,3 @@ private object SilentLogger : Logger {
 }
 
 private const val COPY_ALIAS = "encrypted_copy"
-private val SIDE_FILE_SUFFIXES = listOf("-wal", "-shm", "-journal")
