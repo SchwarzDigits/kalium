@@ -29,11 +29,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 
-/** Runs on Windows only, with DPAPI of the user running the tests. */
-class WindowsDpapiMasterKeyStoreTest {
+/** Runs on Windows only, with DPAPI-NG of the user running the tests; outside a domain, that is the local user. */
+class WindowsDpapiNgMasterKeyStoreTest {
 
-    private val directory = Files.createTempDirectory("kalium-dpapi").toFile()
-    private val store = WindowsDpapiMasterKeyStore()
+    private val directory = Files.createTempDirectory("kalium-dpapi-ng").toFile()
+    private val store = WindowsDpapiNgMasterKeyStore()
 
     @BeforeTest
     fun requireWindows() {
@@ -56,7 +56,7 @@ class WindowsDpapiMasterKeyStoreTest {
     }
 
     @Test
-    fun givenReferenceThatIsNoDpapiBlob_whenUnprotected_thenItFails() {
+    fun givenReferenceThatIsNoProtectedKey_whenUnprotected_thenItFails() {
         assertFailsWith<SettingsEncryptionException> { store.load(Base64.getEncoder().encodeToString(ByteArray(64))) }
     }
 
@@ -66,15 +66,15 @@ class WindowsDpapiMasterKeyStoreTest {
     }
 
     @Test
-    fun givenDpapiKeyStore_whenEncryptedSettingsAreWrittenAndReopened_thenTheyReadBack() {
+    fun givenDpapiNgKeyStore_whenEncryptedSettingsAreWrittenAndReopened_thenTheyReadBack() {
         buildSettings(SettingOptions.AppSettings(true), param()).putString("secret", "value")
 
         assertEquals("value", buildSettings(SettingOptions.AppSettings(true), param()).getStringOrNull("secret"))
     }
 
     @Test
-    fun givenWindows_whenThePlatformKeyStoreIsChosen_thenItIsDpapi() {
-        assertEquals("windows-dpapi", platformMasterKeyStore().name)
+    fun givenWindows_whenThePlatformKeyStoreIsChosen_thenItIsDpapiNg() {
+        assertEquals("windows-dpapi-ng", platformMasterKeyStore().name)
     }
 
     private fun param() = EncryptedSettingsPlatformParam(directory.path, SettingsMasterKeys { store })
