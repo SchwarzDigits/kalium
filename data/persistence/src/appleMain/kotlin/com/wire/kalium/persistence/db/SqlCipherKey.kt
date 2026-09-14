@@ -35,6 +35,9 @@ import co.touchlab.sqliter.withStatement
  */
 internal class SqlCipherKey(private val secret: ByteArray) {
 
+    /** False for the empty secret, which leaves the database unencrypted. */
+    val encrypts: Boolean get() = secret.isNotEmpty()
+
     /**
      * SQLiter calls this for every new connection, the readers of a WAL database included, before it reads from the
      * file. That is when SQLCipher needs the key.
@@ -54,6 +57,10 @@ internal class SqlCipherKey(private val secret: ByteArray) {
             else -> connection.rawExecSql("PRAGMA hexkey = '${secret.toHex()}'")
         }
     }
+
+    /** The key as `ATTACH ... KEY` takes it: a raw key as its text, a passphrase as its bytes, as `PRAGMA hexkey` does. */
+    fun attachLiteral(): String =
+        if (secret.isRawKey()) "'${secret.decodeToString().replace("'", "''")}'" else "X'${secret.toHex()}'"
 
     private fun ByteArray.isRawKey(): Boolean =
         size == RAW_KEY_LENGTH &&

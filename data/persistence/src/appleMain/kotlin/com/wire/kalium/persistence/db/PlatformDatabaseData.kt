@@ -42,7 +42,8 @@ sealed class StorageData {
 }
 
 /**
- * @param passphrase encrypts the database with SQLCipher, see [SqlCipherKey]. Null leaves it unencrypted.
+ * @param passphrase encrypts the database with SQLCipher, see [SqlCipherKey]; a database that an earlier version stored
+ * unencrypted is encrypted first, see [encryptPlaintextDatabase]. Null leaves the database unencrypted.
  */
 @Suppress("LongParameterList")
 fun databaseDriver(
@@ -54,11 +55,15 @@ fun databaseDriver(
 ): SqlDriver {
     val driverConfiguration = DriverConfigurationBuilder().apply(config)
     val sqlCipherKey = passphrase?.let(::SqlCipherKey)
+    val journalMode = if (driverConfiguration.isWALEnabled) JournalMode.WAL else JournalMode.DELETE
+    if (driverUri != null && sqlCipherKey != null && sqlCipherKey.encrypts) {
+        encryptPlaintextDatabase(driverUri, dbName, sqlCipherKey, journalMode)
+    }
     val inMemory = driverUri == null
     val configuration = DatabaseConfiguration(
         name = dbName,
         version = schema.version.toInt(),
-        journalMode = if (driverConfiguration.isWALEnabled) JournalMode.WAL else JournalMode.DELETE,
+        journalMode = journalMode,
         inMemory = inMemory,
         loggingConfig = if (driverConfiguration.useGradleSafeSqliterLogging) {
             DatabaseConfiguration.Logging(logger = GradleSafeSqliterLogger)
