@@ -4,7 +4,7 @@ name: Digits JVM tests
 
 on:
   push:
-    branches: ['digits/**']
+    branches: [develop, 'digits/**']
   pull_request:
     branches: [develop]
   workflow_dispatch:
