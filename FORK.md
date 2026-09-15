@@ -73,7 +73,7 @@ Conflicts:
 
 ## Releases
 
-A release is an annotated tag on `digits/main`, named `digits-<YYYY.MM.DD>.<n>`, for example `digits-2026.09.15.1`. `<n>` counts the releases of that day.
+A release is an annotated tag on `digits/main`, named `digits-<n>`: `digits-1`, `digits-2`, and so on. The tag records its date; list the releases in order with `git tag --list 'digits-*' --sort=v:refname`.
 
 1. Merge Wire's `develop` into `digits/main` (see [Keeping up with Wire](#keeping-up-with-wire)).
 2. Make sure the Digits JVM tests are green on `digits/main`.
@@ -81,8 +81,8 @@ A release is an annotated tag on `digits/main`, named `digits-<YYYY.MM.DD>.<n>`,
 
    ```sh
    git log --oneline --no-merges <previous-tag>..HEAD ^wire/develop    # our changes since the previous release
-   git tag -a digits-2026.09.15.1
-   git push origin digits-2026.09.15.1
+   git tag -a digits-<n>
+   git push origin digits-<n>
    ```
 
 Notes:
