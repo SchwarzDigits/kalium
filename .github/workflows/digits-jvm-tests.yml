@@ -1,12 +1,14 @@
 # Schwarz Digits fork: runs the JVM tests of the database, settings and CoreCrypto code on
 # Windows, Linux and macOS. Needs no secrets. Wire's own workflows are separate.
+# digits/main is our working branch; develop mirrors Wire's. Change branches based on Wire's
+# develop get these tests through their pull request into digits/main.
 name: Digits JVM tests
 
 on:
   push:
-    branches: [develop, 'digits/**']
+    branches: ['digits/**']
   pull_request:
-    branches: [develop]
+    branches: ['digits/main']
   workflow_dispatch:
 
 permissions:
