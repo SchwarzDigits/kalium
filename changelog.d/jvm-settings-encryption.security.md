@@ -1,4 +1,4 @@
-JVM: with `KaliumConfigs.shouldEncryptData` on, which is the default, the settings files are now encrypted with AES-256-GCM. They hold the auth tokens and the keys of the local databases and keystores. Their master key lives in the system key store; on macOS that is the Keychain.
+JVM: with `KaliumConfigs.shouldEncryptData` on, which is the default, the settings files are now encrypted with AES-256-GCM. They hold the auth tokens and the keys of the CoreCrypto keystores. Their master key lives in the system key store; on macOS that is the Keychain.
 
   - ABI: no change
   - Source: no change

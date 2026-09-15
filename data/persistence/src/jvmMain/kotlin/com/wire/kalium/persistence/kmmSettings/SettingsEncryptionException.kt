@@ -22,7 +22,7 @@ package com.wire.kalium.persistence.kmmSettings
  * The encrypted settings can't be used: a settings file is plaintext or was changed, or its master
  * key is missing, belongs to another key store, or the system key store is unavailable.
  *
- * Kalium never falls back to empty settings here, since that would lose the keys of the local
- * databases. Catching this is the place to offer starting over locally.
+ * Kalium never falls back to empty settings here, since that would lose the keys of the
+ * CoreCrypto keystores. Catching this is the place to offer starting over locally.
  */
 class SettingsEncryptionException(message: String, cause: Throwable? = null) : IllegalStateException(message, cause)

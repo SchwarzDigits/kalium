@@ -39,8 +39,8 @@ private const val MOVE_RETRY_DELAY_MILLIS = 50L
 /**
  * Writes the whole file to a temporary sibling, syncs it to disk and moves it over the old one.
  *
- * The settings hold the keys of the local databases and keystores. Rewriting a file in place could
- * leave it truncated after a crash, and with it data that can no longer be decrypted.
+ * The settings hold the auth tokens and the keys of the CoreCrypto keystores. Rewriting a file in
+ * place could leave it truncated after a crash, and with it keystores that can no longer be decrypted.
  */
 internal fun writeAtomically(
     file: File,
