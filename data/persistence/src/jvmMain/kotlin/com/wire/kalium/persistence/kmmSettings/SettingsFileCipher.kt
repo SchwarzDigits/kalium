@@ -32,7 +32,7 @@ import javax.crypto.spec.SecretKeySpec
  * File layout: a readable header line, the 12-byte nonce, then the encrypted properties and the
  * GCM tag. The header is authenticated as well. A wrong key, a changed byte or a plaintext file
  * makes [load] throw [SettingsEncryptionException] instead of starting with empty settings, which
- * would lose the keys of the local databases.
+ * would lose the keys of the CoreCrypto keystores.
  */
 internal class SettingsFileCipher(key: ByteArray) {
 

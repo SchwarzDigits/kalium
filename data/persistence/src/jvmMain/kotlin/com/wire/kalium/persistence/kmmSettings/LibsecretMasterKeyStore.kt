@@ -27,7 +27,7 @@ import java.util.UUID
 
 /**
  * Keeps the settings master key in the Secret Service through libsecret: GNOME Keyring, KDE Wallet
- * (5.97 and later) or KeePassXC, whichever the desktop runs.
+ * (5.97 and later) or KeePassXC, whichever is running.
  *
  * There is no fallback. Without libsecret, or without a running and unlockable Secret Service,
  * every call throws [SettingsEncryptionException].

@@ -29,8 +29,7 @@ import java.util.UUID
  * Keeps the settings master key as a generic password in the macOS Keychain.
  *
  * Uses the classic `SecKeychain…GenericPassword` calls. They are deprecated but still available, and
- * take far less code through JNA than the `SecItem` API with its CoreFoundation dictionaries. macOS
- * is only a development platform for Kalium's JVM target.
+ * take far less code through JNA than the `SecItem` API with its CoreFoundation dictionaries.
  *
  * @param keychainPath a specific keychain file instead of the user's default keychains, for tests.
  */
