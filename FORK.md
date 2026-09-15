@@ -30,6 +30,8 @@ If things go differently:
 ## Rules
 
 - One change per branch and per pull request. A change that needs another one is based on that branch, and its pull request says so.
+- Start change branches from `develop` or from the change they build on, never from `digits/main`. A branch from `digits/main` would carry our fork-only changes to Wire.
+- Never commit to `develop`, and don't force-push a branch with an open pull request without agreeing on it first.
 - The pull request into `digits/main` and the one at Wire don't reference each other.
 - Text in code, changelog fragments and commit messages must be true for Wire's code as well, and names no product or customer.
 - Commit and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/) as `fix(<scope>): …`.
@@ -45,6 +47,19 @@ git merge develop                       # conflicts: take Wire's version
 git push origin digits/main
 ```
 
+## Fork-only files
+
+These files exist only in `digits/main`, never in `develop`, so pull requests to Wire don't carry them:
+
+- `FORK.md`,
+- `.github/workflows/digits-*.yml`.
+
+Before opening a pull request at Wire, check that the branch doesn't contain any of them:
+
+```sh
+git diff --name-only wire/develop...HEAD | grep -E '^(FORK\.md|\.github/workflows/digits-)' && echo "fork-only files in this branch"
+```
+
 ## CI
 
 `Digits JVM tests` (`.github/workflows/digits-jvm-tests.yml`) runs the JVM tests of `data/persistence`, `domain/userstorage` and `core/cryptography` on Windows, Linux and macOS:
@@ -54,24 +69,9 @@ git push origin digits/main
 
 Change branches start from Wire's `develop` and don't contain the workflow; their pull request into `digits/main` runs it. Wire's own workflows are unchanged.
 
-## Fork-only files
-
-These files exist only in `digits/main`, never in `develop`, so pull requests to Wire don't carry them:
-
-- `FORK.md`,
-- `.claude/` (see below),
-- `.github/workflows/digits-*.yml`.
-
-Before opening a pull request at Wire, check that the branch doesn't contain any of them:
-
-```sh
-git diff --name-only wire/develop...HEAD | grep -E '^(FORK\.md|\.claude/|\.github/workflows/digits-)' && echo "fork-only files in this branch"
-```
-
 ## AI coding agents
 
-Wire's `.gitignore` excludes `.claude/`, `CLAUDE.md` and `AGENTS.md`. This fork still tracks `.claude/CLAUDE.md`, added with `git add -f`, so Claude Code picks up these rules without any setup; it imports this file.
+Wire's `.gitignore` excludes `CLAUDE.md`, `AGENTS.md` and `.claude/`, so agent instructions stay local. To give your agent the rules of this fork:
 
-- Add new files under `.claude/` with `git add -f` as well.
-- Personal files such as `.claude/settings.local.json` stay ignored.
-- Other agents: point their local instructions to `FORK.md`.
+- **Claude Code:** Create a local `CLAUDE.md` in the repository root containing the line `@FORK.md`; Claude Code then imports this file.
+- **Other agents:** Point their local instructions to `FORK.md`.
