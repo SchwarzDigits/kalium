@@ -23,7 +23,6 @@ import com.wire.kalium.persistence.dao.message.MessageEntity
 import com.wire.kalium.persistence.dao.message.MessageEntityContent
 import com.wire.kalium.persistence.db.UserDatabaseBuilder
 import com.wire.kalium.persistence.utils.IgnoreJS
-import com.wire.kalium.persistence.utils.IgnoreIOS
 import com.wire.kalium.persistence.utils.stubs.newConversationEntity
 import com.wire.kalium.persistence.utils.stubs.newRegularMessageEntity
 import com.wire.kalium.persistence.utils.stubs.newUserDetailsEntity
@@ -39,7 +38,6 @@ import kotlin.test.assertEquals
 import kotlin.test.fail
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@IgnoreIOS
 @IgnoreJS
 class DatabaseExporterTest : BaseDatabaseTest() {
     private lateinit var localDB: UserDatabaseBuilder
