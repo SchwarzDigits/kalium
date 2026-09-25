@@ -19,8 +19,14 @@
 @Suppress("DSL_SCOPE_VIOLATION")
 plugins {
     id(libs.plugins.kalium.library.get().pluginId)
-    id("com.wire.kalium.apple-avs-runtime")
+    id("com.wire.kalium.apple-avs-runtime") apply false
     alias(libs.plugins.ksp)
+}
+
+// With kalium.disableAppleAvs, Apple builds don't use AVS: calling reports it as unavailable, and nothing links it.
+val disableAppleAvs: Boolean = findProperty("kalium.disableAppleAvs")?.toString()?.toBoolean() ?: false
+if (!disableAppleAvs) {
+    apply(plugin = "com.wire.kalium.apple-avs-runtime")
 }
 
 kaliumLibrary {
@@ -66,25 +72,30 @@ kotlin {
             }
         }
         val appleMain by getting
-        val appleAvsMainSourceDir = "src/appleAvsMain/kotlin"
-        listOf(
-            getByName("iosArm64Main"),
-            getByName("iosSimulatorArm64Main"),
-            getByName("macosArm64Main")
-        ).forEach { appleTargetMain ->
-            appleTargetMain.kotlin.srcDir(appleAvsMainSourceDir)
-            appleTargetMain.dependencies {
-                implementation(libs.avsKmp)
+        val appleTargets = listOf("iosArm64", "iosSimulatorArm64", "macosArm64")
+        if (disableAppleAvs) {
+            appleTargets.forEach { target ->
+                getByName("${target}Main").kotlin.srcDir("src/appleNoAvsMain/kotlin")
+                getByName("${target}Test").kotlin.srcDir("src/appleNoAvsTest/kotlin")
             }
+            getByName("appleTest").kotlin.exclude("com/wire/kalium/calling/AppleAvsRuntimeLinkingTest.kt")
+        } else {
+            val appleAvsMainSourceDir = "src/appleAvsMain/kotlin"
+            appleTargets.map { getByName("${it}Main") }.forEach { appleTargetMain ->
+                appleTargetMain.kotlin.srcDir(appleAvsMainSourceDir)
+                appleTargetMain.dependencies {
+                    implementation(libs.avsKmp)
+                }
+            }
+            val appleAvsIosMainSourceDir = "src/appleAvsIosMain/kotlin"
+            listOf(
+                getByName("iosArm64Main"),
+                getByName("iosSimulatorArm64Main")
+            ).forEach { iosTargetMain ->
+                iosTargetMain.kotlin.srcDir(appleAvsIosMainSourceDir)
+            }
+            getByName("macosArm64Main").kotlin.srcDir("src/appleAvsMacosMain/kotlin")
         }
-        val appleAvsIosMainSourceDir = "src/appleAvsIosMain/kotlin"
-        listOf(
-            getByName("iosArm64Main"),
-            getByName("iosSimulatorArm64Main")
-        ).forEach { iosTargetMain ->
-            iosTargetMain.kotlin.srcDir(appleAvsIosMainSourceDir)
-        }
-        getByName("macosArm64Main").kotlin.srcDir("src/appleAvsMacosMain/kotlin")
 
         val commonTest by getting {
             dependencies { }

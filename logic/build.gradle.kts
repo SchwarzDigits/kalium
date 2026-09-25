@@ -21,10 +21,16 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 plugins {
     alias(libs.plugins.kotlin.serialization)
     id(libs.plugins.kalium.library.get().pluginId)
-    id("com.wire.kalium.apple-avs-runtime")
+    id("com.wire.kalium.apple-avs-runtime") apply false
     alias(libs.plugins.ksp)
     alias(libs.plugins.mokkery)
     alias(libs.plugins.skie)
+}
+
+// With kalium.disableAppleAvs, Apple builds don't use AVS: calling reports it as unavailable, and nothing links it.
+val disableAppleAvs: Boolean = findProperty("kalium.disableAppleAvs")?.toString()?.toBoolean() ?: false
+if (!disableAppleAvs) {
+    apply(plugin = "com.wire.kalium.apple-avs-runtime")
 }
 
 kaliumLibrary {
@@ -142,8 +148,10 @@ kotlin {
             getByName("macosArm64Main")
         ).forEach { appleTargetMain ->
             appleTargetMain.kotlin.srcDir(appleCallSourceDir)
-            appleTargetMain.dependencies {
-                implementation(libs.avsKmp)
+            if (!disableAppleAvs) {
+                appleTargetMain.dependencies {
+                    implementation(libs.avsKmp)
+                }
             }
         }
 
