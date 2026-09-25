@@ -186,7 +186,8 @@ jobs:
         run: |
           auth_token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
 
-          for attempt in {1..60}; do
+          # Publishing a release of all modules can take well over ten minutes.
+          for attempt in {1..180}; do
             status_json="$(
               curl --fail-with-body --silent --show-error \
                 --request POST \
@@ -213,7 +214,7 @@ jobs:
                 ;;
             esac
 
-            sleep 10
+            sleep 20
           done
 
           echo "::error::Timed out waiting for Maven Central deployment ${CENTRAL_DEPLOYMENT_ID}"
