@@ -134,6 +134,14 @@ Setup for both the submodule and Maven paths, plus the caching and dSYM
 behavior, is documented in the
 [plugin setup guide](../plugins/apple-avs-runtime/README.md).
 
+### Building without AVS
+
+Setting `kalium.disableAppleAvs=true` in Kalium's `gradle.properties` builds the
+Apple targets without AVS. The AVS runtime plugin is then not applied, and
+applications neither link nor embed AVS. Calling on Apple reports AVS as
+unavailable, so this fits applications that turn calling off with
+`KaliumConfigs.enableCalling`.
+
 ### Using the Framework
 
 After building the framework, locate it at:
