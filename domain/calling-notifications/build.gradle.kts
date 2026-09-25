@@ -18,7 +18,13 @@
 
 plugins {
     id(libs.plugins.kalium.library.get().pluginId)
-    id("com.wire.kalium.apple-avs-runtime")
+    id("com.wire.kalium.apple-avs-runtime") apply false
+}
+
+// With kalium.disableAppleAvs, Apple builds don't use AVS: calling reports it as unavailable, and nothing links it.
+val disableAppleAvs: Boolean = findProperty("kalium.disableAppleAvs")?.toString()?.toBoolean() ?: false
+if (!disableAppleAvs) {
+    apply(plugin = "com.wire.kalium.apple-avs-runtime")
 }
 
 kaliumLibrary {
@@ -35,15 +41,19 @@ kotlin {
             kotlin.srcDir("src/commonJvmAndroid/kotlin")
         }
 
-        val appleAvsMainSourceDir = "src/appleAvsMain/kotlin"
-        listOf(
-            getByName("iosArm64Main"),
-            getByName("iosSimulatorArm64Main"),
-            getByName("macosArm64Main")
-        ).forEach { appleTargetMain ->
-            appleTargetMain.kotlin.srcDir(appleAvsMainSourceDir)
-            appleTargetMain.dependencies {
-                implementation(libs.avsKmp)
+        val appleTargets = listOf("iosArm64", "iosSimulatorArm64", "macosArm64")
+        if (disableAppleAvs) {
+            appleTargets.forEach { target ->
+                getByName("${target}Main").kotlin.srcDir("src/appleNoAvsMain/kotlin")
+                getByName("${target}Test").kotlin.srcDir("src/appleNoAvsTest/kotlin")
+            }
+        } else {
+            val appleAvsMainSourceDir = "src/appleAvsMain/kotlin"
+            appleTargets.map { getByName("${it}Main") }.forEach { appleTargetMain ->
+                appleTargetMain.kotlin.srcDir(appleAvsMainSourceDir)
+                appleTargetMain.dependencies {
+                    implementation(libs.avsKmp)
+                }
             }
         }
         val androidMain by getting {
