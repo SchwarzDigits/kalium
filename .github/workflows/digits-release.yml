@@ -1,0 +1,212 @@
+name: Digits release
+
+# Publishes a release of this fork to Maven Central as schwarz.opensource.natrium:<module>:<tag>. A release is a tag on
+# a release branch digits/<Wire version>, named <Wire version>-digits.<n>, e.g. 0.0.7-digits.2. See FORK.md.
+
+on:
+  push:
+    tags:
+      - "*-digits.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, e.g. 0.0.7-digits.2"
+        required: true
+        type: string
+      publishing-type:
+        description: "Central Portal publishing type: AUTOMATIC or USER_MANAGED"
+        required: false
+        type: string
+        default: AUTOMATIC
+
+concurrency:
+  group: digits-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to Maven Central
+    if: github.repository == 'SchwarzDigits/kalium'
+    runs-on: macos-15
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      PUBLISHING_TYPE: ${{ inputs.publishing-type || 'AUTOMATIC' }}
+    steps:
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: "16.1.0"
+
+      - name: Checkout the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the release tag
+        run: |
+          case "$RELEASE_TAG" in
+            *-digits.*) ;;
+            *)
+              echo "::error::Release tags are named <Wire version>-digits.<n>: $RELEASE_TAG"
+              exit 1
+              ;;
+          esac
+          case "$PUBLISHING_TYPE" in
+            AUTOMATIC|USER_MANAGED) ;;
+            *)
+              echo "::error::Unsupported publishing type: $PUBLISHING_TYPE"
+              exit 1
+              ;;
+          esac
+          version="${RELEASE_TAG%-digits.*}"
+          if ! git merge-base --is-ancestor HEAD "origin/digits/$version"; then
+            echo "::error::$RELEASE_TAG is not on the release branch digits/$version"
+            exit 1
+          fi
+
+      - name: Setup Java and Gradle
+        uses: ./.github/actions/setup-java-gradle
+
+      - name: Write the init script for this fork's coordinates
+        run: |
+          cat > "$RUNNER_TEMP/digits-publishing.init.gradle.kts" <<'INIT'
+          import org.gradle.api.publish.PublishingExtension
+          import org.gradle.api.publish.maven.MavenPublication
+
+          // Publishes Kalium from this fork under schwarz.opensource.natrium, with the fork's POM data. It runs after the
+          // build's own publishing setup, so its values win.
+          gradle.projectsEvaluated {
+              allprojects {
+                  group = "schwarz.opensource.natrium"
+                  val publishing = extensions.findByType(PublishingExtension::class.java) ?: return@allprojects
+                  val module = path.removePrefix(":").replace(':', '-')
+                  publishing.publications.withType(MavenPublication::class.java).configureEach {
+                      groupId = "schwarz.opensource.natrium"
+                      pom {
+                          description.set("Kalium KMP messaging SDK, fork of wireapp/kalium (module: $module)")
+                          url.set("https://github.com/SchwarzDigits/kalium")
+                          developers {
+                              developer {
+                                  id.set("schwarzdigits")
+                                  name.set("Schwarz Digits")
+                              }
+                          }
+                          scm {
+                              connection.set("scm:git:https://github.com/SchwarzDigits/kalium.git")
+                              developerConnection.set("scm:git:ssh://git@github.com/SchwarzDigits/kalium.git")
+                              url.set("https://github.com/SchwarzDigits/kalium")
+                          }
+                      }
+                  }
+              }
+          }
+          INIT
+
+      - name: Publish Gradle publications to local staging repository
+        env:
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+        run: |
+          # USE_UNIFIED_CORE_CRYPTO as in Wire's own publishing of these releases; later versions ignore it.
+          ./gradlew --init-script "$RUNNER_TEMP/digits-publishing.init.gradle.kts" \
+            publishAllPublicationsToMavenCentralStagingRepository \
+            -PUSE_UNIFIED_CORE_CRYPTO=true \
+            -Pkalium.publish.version="$RELEASE_TAG" \
+            -Pkalium.mavenCentral.signingRequired=true
+
+      - name: Create Maven Central bundle
+        env:
+          CENTRAL_BUNDLE_PATH: ${{ runner.temp }}/kalium-maven-central.zip
+          CENTRAL_STAGING_REPOSITORY: build/maven-central-staging
+        run: |
+          test -d "$CENTRAL_STAGING_REPOSITORY"
+          find "$CENTRAL_STAGING_REPOSITORY" -type f -name 'maven-metadata.xml*' -exec rm -f {} +
+
+          while IFS= read -r -d '' file; do
+            case "$file" in
+              *.md5|*.sha1|*.sha256|*.sha512) continue ;;
+            esac
+            openssl dgst -md5 -r "$file" | awk '{print $1}' > "$file.md5"
+            shasum -a 1 "$file" | awk '{print $1}' > "$file.sha1"
+          done < <(find "$CENTRAL_STAGING_REPOSITORY" -type f -print0)
+
+          (
+            cd "$CENTRAL_STAGING_REPOSITORY"
+            zip -rXq "$CENTRAL_BUNDLE_PATH" .
+          )
+
+          test -s "$CENTRAL_BUNDLE_PATH"
+          echo "CENTRAL_BUNDLE_PATH=$CENTRAL_BUNDLE_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload bundle to Maven Central
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          auth_token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
+          deployment_id="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $auth_token" \
+              --form "bundle=@${CENTRAL_BUNDLE_PATH};type=application/octet-stream" \
+              "https://central.sonatype.com/api/v1/publisher/upload?publishingType=${PUBLISHING_TYPE}&name=kalium-${RELEASE_TAG}"
+          )"
+
+          echo "CENTRAL_DEPLOYMENT_ID=$deployment_id" >> "$GITHUB_ENV"
+          echo "Uploaded Maven Central deployment: $deployment_id"
+
+      - name: Wait for Maven Central deployment
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          auth_token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
+
+          for attempt in {1..60}; do
+            status_json="$(
+              curl --fail-with-body --silent --show-error \
+                --request POST \
+                --header "Authorization: Bearer $auth_token" \
+                "https://central.sonatype.com/api/v1/publisher/status?id=${CENTRAL_DEPLOYMENT_ID}"
+            )"
+            deployment_state="$(jq -r '.deploymentState' <<< "$status_json")"
+            echo "Maven Central deployment state: $deployment_state"
+
+            case "$deployment_state" in
+              PUBLISHED)
+                echo "$status_json" > "$RUNNER_TEMP/maven-central-status.json"
+                exit 0
+                ;;
+              VALIDATED)
+                if [ "$PUBLISHING_TYPE" = "USER_MANAGED" ]; then
+                  echo "$status_json" > "$RUNNER_TEMP/maven-central-status.json"
+                  exit 0
+                fi
+                ;;
+              FAILED)
+                jq '.' <<< "$status_json"
+                exit 1
+                ;;
+            esac
+
+            sleep 10
+          done
+
+          echo "::error::Timed out waiting for Maven Central deployment ${CENTRAL_DEPLOYMENT_ID}"
+          exit 1
+
+      - name: Maven Central summary
+        if: always()
+        run: |
+          echo "## Maven Central Publish" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version**: ${RELEASE_TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Deployment**: ${CENTRAL_DEPLOYMENT_ID:-not-created}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$RUNNER_TEMP/maven-central-status.json" ]; then
+            echo "**Status**: \`$(jq -r '.deploymentState' "$RUNNER_TEMP/maven-central-status.json")\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
