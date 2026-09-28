@@ -96,15 +96,18 @@ jobs:
           import org.gradle.api.publish.PublishingExtension
           import org.gradle.api.publish.maven.MavenPublication
 
-          // Publishes Kalium from this fork under schwarz.opensource.natrium, with the fork's POM data. It runs after the
-          // build's own publishing setup, so its values win.
+          // Publishes Kalium from this fork with the fork's POM data. It runs after the build's own
+          // publishing setup, so its values win.
+          //
+          // The group is NOT set here: it has to be in place while the projects are configured, so it is
+          // passed as -Pkalium.publish.group below. Setting it from projectsEvaluated leaves each module's
+          // kotlin-project-structure-metadata.json pointing at com.wire.kalium, which breaks commonMain
+          // metadata compilation for consumers.
           gradle.projectsEvaluated {
               allprojects {
-                  group = "schwarz.opensource.natrium"
                   val publishing = extensions.findByType(PublishingExtension::class.java) ?: return@allprojects
                   val module = path.removePrefix(":").replace(':', '-')
                   publishing.publications.withType(MavenPublication::class.java).configureEach {
-                      groupId = "schwarz.opensource.natrium"
                       pom {
                           description.set("Kalium KMP messaging SDK, fork of wireapp/kalium (module: $module)")
                           url.set("https://github.com/SchwarzDigits/kalium")
@@ -135,6 +138,7 @@ jobs:
           ./gradlew --init-script "$RUNNER_TEMP/digits-publishing.init.gradle.kts" \
             publishAllPublicationsToMavenCentralStagingRepository \
             -PUSE_UNIFIED_CORE_CRYPTO=true \
+            -Pkalium.publish.group=schwarz.opensource.natrium \
             -Pkalium.publish.version="$RELEASE_TAG" \
             -Pkalium.mavenCentral.signingRequired=true
 
