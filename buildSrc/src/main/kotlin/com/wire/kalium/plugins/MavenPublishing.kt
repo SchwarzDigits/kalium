@@ -18,6 +18,7 @@
 
 package com.wire.kalium.plugins
 
+import KaliumBuild
 import org.gradle.api.Project
 import org.gradle.api.artifacts.repositories.PasswordCredentials
 import org.gradle.api.plugins.BasePluginExtension
@@ -37,6 +38,8 @@ private const val CENTRAL_SNAPSHOTS_REPOSITORY_URL = "https://central.sonatype.c
 private const val SIGNING_REQUIRED_PROPERTY = "kalium.mavenCentral.signingRequired"
 private const val PUBLISH_VERSION_PROPERTY = "kalium.publish.version"
 private const val PUBLISH_VERSION_ENV = "KALIUM_PUBLISH_VERSION"
+private const val PUBLISH_GROUP_PROPERTY = "kalium.publish.group"
+private const val PUBLISH_GROUP_ENV = "KALIUM_PUBLISH_GROUP"
 private const val MAVEN_CENTRAL_USERNAME_PROPERTY = "mavenCentralUsername"
 private const val MAVEN_CENTRAL_PASSWORD_PROPERTY = "mavenCentralPassword"
 private const val SIGNING_KEY_ID_PROPERTY = "signingInMemoryKeyId"
@@ -55,6 +58,23 @@ private val excludedMavenCentralProjectPaths = setOf(
     ":domain:conversation-history",
     ":domain:messaging:receiving"
 )
+
+/**
+ * The Maven group these modules are published under, overridable with -Pkalium.publish.group
+ * (or KALIUM_PUBLISH_GROUP) so that forks can publish under their own coordinates.
+ *
+ * It has to be applied while the projects are configured, not afterwards: the Kotlin Multiplatform
+ * plugin records the coordinates of sibling modules in each module's project structure metadata
+ * (META-INF/kotlin-project-structure-metadata.json) during configuration. Setting the group later —
+ * from an init script in gradle.projectsEvaluated, say — still produces correct .module and .pom
+ * files, but leaves that metadata pointing at the original group. Consumers then resolve the
+ * renamed modules fine for every platform target, while commonMain metadata compilation silently
+ * finds none of them.
+ */
+internal fun Project.kaliumPublishGroup(): String =
+    providers.gradleProperty(PUBLISH_GROUP_PROPERTY)
+        .orElse(providers.environmentVariable(PUBLISH_GROUP_ENV))
+        .getOrElse(KaliumBuild.GROUP)
 
 internal fun Project.configureKaliumMavenPublishingIfNeeded() {
     if (!isPublishedToMavenCentral()) return
