@@ -1,7 +1,8 @@
 name: Digits release
 
-# Publishes a release of this fork to Maven Central as schwarz.opensource.natrium:<module>:<tag>. A release is a tag on
-# a release branch digits/<Wire version>, named <Wire version>-digits.<n>, e.g. 0.0.7-digits.2. See FORK.md.
+# Publishes a release of this fork as schwarz.opensource.natrium:<module>:<tag> to the fork's Maven repository, the
+# STACKIT Object Storage bucket natrium-repository. A release is a tag on a release branch digits/<Wire version>, named
+# <Wire version>-digits.<n>, e.g. 0.0.7-digits.3. See FORK.md.
 
 on:
   push:
@@ -10,17 +11,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to publish, e.g. 0.0.7-digits.2"
+        description: "Release tag to publish, e.g. 0.0.7-digits.3"
         required: true
         type: string
-      publishing-type:
-        description: "Central Portal publishing type: AUTOMATIC or USER_MANAGED"
+      overwrite:
+        description: "Replace files of this release that are already in the repository, e.g. after a failed upload"
         required: false
-        type: string
-        default: AUTOMATIC
+        type: boolean
+        default: false
 
+# One release at a time: each one reads, merges and writes the maven-metadata.xml files.
 concurrency:
-  group: digits-release-${{ inputs.tag || github.ref_name }}
+  group: digits-release
   cancel-in-progress: false
 
 permissions:
@@ -28,24 +30,28 @@ permissions:
 
 jobs:
   publish:
-    name: Publish to Maven Central
+    name: Publish to the Maven repository
     if: github.repository == 'SchwarzDigits/kalium'
     runs-on: macos-15
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-      PUBLISHING_TYPE: ${{ inputs.publishing-type || 'AUTOMATIC' }}
+      OVERWRITE: ${{ inputs.overwrite || false }}
+      REPOSITORY_URL: https://natrium-repository.object.storage.eu01.onstackit.cloud
+      S3_ENDPOINT: https://object.storage.eu01.onstackit.cloud
+      S3_BUCKET: natrium-repository
+      STAGING_REPOSITORY: build/maven-central-staging
     steps:
       - name: Check the secrets
         env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_REPOSITORY_ACCESS_KEY_ID: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          MAVEN_REPOSITORY_SECRET_ACCESS_KEY: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
           SIGNING_IN_MEMORY_KEY_ID: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
           SIGNING_IN_MEMORY_KEY: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
           SIGNING_IN_MEMORY_KEY_PASSWORD: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
         run: |
           missing=0
-          for name in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_IN_MEMORY_KEY_ID SIGNING_IN_MEMORY_KEY \
-            SIGNING_IN_MEMORY_KEY_PASSWORD; do
+          for name in MAVEN_REPOSITORY_ACCESS_KEY_ID MAVEN_REPOSITORY_SECRET_ACCESS_KEY SIGNING_IN_MEMORY_KEY_ID \
+            SIGNING_IN_MEMORY_KEY SIGNING_IN_MEMORY_KEY_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "::error::The repository secret $name is missing"
               missing=1
@@ -71,13 +77,6 @@ jobs:
             *-digits.*) ;;
             *)
               echo "::error::Release tags are named <Wire version>-digits.<n>: $RELEASE_TAG"
-              exit 1
-              ;;
-          esac
-          case "$PUBLISHING_TYPE" in
-            AUTOMATIC|USER_MANAGED) ;;
-            *)
-              echo "::error::Unsupported publishing type: $PUBLISHING_TYPE"
               exit 1
               ;;
           esac
@@ -142,94 +141,103 @@ jobs:
             -Pkalium.publish.version="$RELEASE_TAG" \
             -Pkalium.mavenCentral.signingRequired=true
 
-      - name: Create Maven Central bundle
-        env:
-          CENTRAL_BUNDLE_PATH: ${{ runner.temp }}/kalium-maven-central.zip
-          CENTRAL_STAGING_REPOSITORY: build/maven-central-staging
+      - name: Check that the release is not in the repository yet
         run: |
-          test -d "$CENTRAL_STAGING_REPOSITORY"
-          find "$CENTRAL_STAGING_REPOSITORY" -type f -name 'maven-metadata.xml*' -exec rm -f {} +
+          test -d "$STAGING_REPOSITORY"
+          # Released files are never replaced, unless the input overwrite is set.
+          (cd "$STAGING_REPOSITORY" && find . -type f -name '*.pom' | sed 's#^\./##') \
+            | xargs -P 16 -I{} sh -c 'code="$(curl -s -o /dev/null -w "%{http_code}" "$REPOSITORY_URL/{}")"; \
+                [ "$code" = 404 ] || echo "{} $code"' > "$RUNNER_TEMP/existing.txt"
+          if [ -s "$RUNNER_TEMP/existing.txt" ]; then
+            cat "$RUNNER_TEMP/existing.txt"
+            if [ "$OVERWRITE" != "true" ]; then
+              echo "::error::$RELEASE_TAG is already in the repository, at least in part. Run the workflow by hand with overwrite to replace it."
+              exit 1
+            fi
+            echo "::warning::Replacing files of $RELEASE_TAG that are already in the repository"
+          fi
 
-          while IFS= read -r -d '' file; do
-            case "$file" in
-              *.md5|*.sha1|*.sha256|*.sha512) continue ;;
-            esac
-            openssl dgst -md5 -r "$file" | awk '{print $1}' > "$file.md5"
-            shasum -a 1 "$file" | awk '{print $1}' > "$file.sha1"
-          done < <(find "$CENTRAL_STAGING_REPOSITORY" -type f -print0)
-
-          (
-            cd "$CENTRAL_STAGING_REPOSITORY"
-            zip -rXq "$CENTRAL_BUNDLE_PATH" .
-          )
-
-          test -s "$CENTRAL_BUNDLE_PATH"
-          echo "CENTRAL_BUNDLE_PATH=$CENTRAL_BUNDLE_PATH" >> "$GITHUB_ENV"
-
-      - name: Upload bundle to Maven Central
-        env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      - name: Merge the maven-metadata.xml files with the repository
         run: |
-          auth_token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
-          deployment_id="$(
-            curl --fail-with-body --silent --show-error \
-              --request POST \
-              --header "Authorization: Bearer $auth_token" \
-              --form "bundle=@${CENTRAL_BUNDLE_PATH};type=application/octet-stream" \
-              "https://central.sonatype.com/api/v1/publisher/upload?publishingType=${PUBLISHING_TYPE}&name=kalium-${RELEASE_TAG}"
-          )"
+          # The staging repository only knows this release. Each artifact's maven-metadata.xml gets the versions that
+          # are already in the repository, so tools that look for new versions still see all of them.
+          python3 - "$STAGING_REPOSITORY" "$REPOSITORY_URL" "$RELEASE_TAG" <<'PY'
+          import datetime, hashlib, os, sys, urllib.error, urllib.request
+          import xml.etree.ElementTree as ET
 
-          echo "CENTRAL_DEPLOYMENT_ID=$deployment_id" >> "$GITHUB_ENV"
-          echo "Uploaded Maven Central deployment: $deployment_id"
+          staging, repository_url, release = sys.argv[1:4]
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S")
+          for directory, _, files in os.walk(staging):
+              if "maven-metadata.xml" not in files:
+                  continue
+              path = os.path.join(directory, "maven-metadata.xml")
+              url = repository_url + "/" + os.path.relpath(path, staging)
+              metadata = ET.parse(path)
+              versioning = metadata.getroot().find("versioning")
+              versions = versioning.find("versions")
+              try:
+                  with urllib.request.urlopen(url) as response:
+                      published = [v.text for v in ET.fromstring(response.read()).iter("version") if v.text]
+              except urllib.error.HTTPError as error:
+                  if error.code != 404:
+                      raise
+                  published = []
+              versions.clear()
+              for version in [v for v in published if v != release] + [release]:
+                  ET.SubElement(versions, "version").text = version
+              versioning.find("latest").text = release
+              versioning.find("release").text = release
+              versioning.find("lastUpdated").text = now
+              ET.indent(metadata, space="  ")
+              metadata.write(path, encoding="UTF-8", xml_declaration=True)
+              content = open(path, "rb").read()
+              for algorithm in ("md5", "sha1", "sha256", "sha512"):
+                  with open(path + "." + algorithm, "w") as checksum:
+                      checksum.write(hashlib.new(algorithm, content).hexdigest())
+          PY
 
-      - name: Wait for Maven Central deployment
+      - name: Upload to the Maven repository
         env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu01
+          AWS_EC2_METADATA_DISABLED: "true"
+          # STACKIT Object Storage doesn't need the additional checksums newer AWS CLI versions send by default.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: |
-          auth_token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
+          command -v aws > /dev/null || brew install awscli
+          aws --version
+          # The artifacts first, the maven-metadata.xml files last, so they never name a version that isn't there.
+          aws s3 cp "$STAGING_REPOSITORY" "s3://$S3_BUCKET" --recursive --only-show-errors \
+            --endpoint-url "$S3_ENDPOINT" --exclude "*maven-metadata.xml*"
+          aws s3 cp "$STAGING_REPOSITORY" "s3://$S3_BUCKET" --recursive --only-show-errors \
+            --endpoint-url "$S3_ENDPOINT" --exclude "*" --include "*maven-metadata.xml*"
 
-          # Publishing a release of all modules can take well over ten minutes.
-          for attempt in {1..180}; do
-            status_json="$(
-              curl --fail-with-body --silent --show-error \
-                --request POST \
-                --header "Authorization: Bearer $auth_token" \
-                "https://central.sonatype.com/api/v1/publisher/status?id=${CENTRAL_DEPLOYMENT_ID}"
-            )"
-            deployment_state="$(jq -r '.deploymentState' <<< "$status_json")"
-            echo "Maven Central deployment state: $deployment_state"
-
-            case "$deployment_state" in
-              PUBLISHED)
-                echo "$status_json" > "$RUNNER_TEMP/maven-central-status.json"
-                exit 0
-                ;;
-              VALIDATED)
-                if [ "$PUBLISHING_TYPE" = "USER_MANAGED" ]; then
-                  echo "$status_json" > "$RUNNER_TEMP/maven-central-status.json"
-                  exit 0
-                fi
-                ;;
-              FAILED)
-                jq '.' <<< "$status_json"
-                exit 1
-                ;;
-            esac
-
-            sleep 20
+      - name: Check the release in the repository
+        run: |
+          group_path=schwarz/opensource/natrium
+          for file in "logic/$RELEASE_TAG/logic-$RELEASE_TAG.pom" "logic/$RELEASE_TAG/logic-$RELEASE_TAG.module" \
+            "logic/maven-metadata.xml"; do
+            curl --fail --silent --show-error --head --output /dev/null "$REPOSITORY_URL/$group_path/$file"
           done
+          curl --fail --silent --show-error "$REPOSITORY_URL/$group_path/logic/maven-metadata.xml" \
+            | grep -q "<version>$RELEASE_TAG</version>"
 
-          echo "::error::Timed out waiting for Maven Central deployment ${CENTRAL_DEPLOYMENT_ID}"
-          exit 1
-
-      - name: Maven Central summary
+      - name: Summary
         if: always()
         run: |
-          echo "## Maven Central Publish" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Version**: ${RELEASE_TAG}" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Deployment**: ${CENTRAL_DEPLOYMENT_ID:-not-created}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f "$RUNNER_TEMP/maven-central-status.json" ]; then
-            echo "**Status**: \`$(jq -r '.deploymentState' "$RUNNER_TEMP/maven-central-status.json")\`" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "## Maven repository"
+            echo "**Version**: ${RELEASE_TAG}"
+            echo "**Repository**: ${REPOSITORY_URL}"
+            echo
+            echo '```kotlin'
+            echo "repositories {"
+            echo "    maven(\"${REPOSITORY_URL}\")"
+            echo "}"
+            echo "dependencies {"
+            echo "    implementation(\"schwarz.opensource.natrium:logic:${RELEASE_TAG}\")"
+            echo "}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

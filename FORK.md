@@ -1,8 +1,9 @@
 # SchwarzDigits fork of Kalium
 
 This repository is a fork of [wireapp/kalium](https://github.com/wireapp/kalium). Our releases are Wire's Kalium
-releases plus the few changes they need, published to Maven Central. Every change that isn't specific to this fork is
-also a pull request to Wire, so the fork stays close to Wire.
+releases plus the few changes they need, published to this fork's Maven repository (see
+[Using a release](#using-a-release)). Every change that isn't specific to this fork is also a pull request to Wire, so
+the fork stays close to Wire.
 
 ## Branches
 
@@ -133,15 +134,35 @@ gh repo edit SchwarzDigits/kalium --default-branch digits/<version>
    ```
 
 Pushing the tag runs the workflow `Digits release` (`.github/workflows/digits-release.yml`). It checks that the tag is on
-`digits/<version>`, and publishes all modules to Maven Central as `schwarz.opensource.natrium:<module>:<tag>`, signed.
-It can also be started by hand for an existing tag.
+`digits/<version>`, and publishes all modules as `schwarz.opensource.natrium:<module>:<tag>`, signed, to the Maven
+repository (see [Using a release](#using-a-release)). It never replaces a release that is already there. It can also be
+started by hand for an existing tag; its input `overwrite` replaces the files of a release, for example after a failed
+upload.
 
 Notes:
 
 - Tags starting with `v` belong to Wire. Never create or push them here; Wire's release workflows react to them.
-- The workflow needs the repository secrets `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`,
-  `SIGNING_IN_MEMORY_KEY_ID`, `SIGNING_IN_MEMORY_KEY` and `SIGNING_IN_MEMORY_KEY_PASSWORD`.
+- The workflow needs the repository secrets `MAVEN_REPOSITORY_ACCESS_KEY_ID`, `MAVEN_REPOSITORY_SECRET_ACCESS_KEY`,
+  `SIGNING_IN_MEMORY_KEY_ID`, `SIGNING_IN_MEMORY_KEY` and `SIGNING_IN_MEMORY_KEY_PASSWORD`. The access key belongs to the
+  credentials group `release-publisher` of the STACKIT project that holds the bucket.
+- Releases up to `0.0.7-digits.3` are also on Maven Central.
 - Kalium uses Wire's Core Crypto releases, as Wire's release pins them.
+
+### Using a release
+
+The Maven repository is the STACKIT Object Storage bucket `natrium-repository`. Anyone can read its files; nobody can
+list it or write to it without a key.
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven("https://natrium-repository.object.storage.eu01.onstackit.cloud")
+}
+
+dependencies {
+    implementation("schwarz.opensource.natrium:logic:<version>-digits.<n>")
+}
+```
 
 ## Fork-only files
 
