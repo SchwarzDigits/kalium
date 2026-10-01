@@ -146,8 +146,8 @@ jobs:
           test -d "$STAGING_REPOSITORY"
           # Released files are never replaced, unless the input overwrite is set.
           (cd "$STAGING_REPOSITORY" && find . -type f -name '*.pom' | sed 's#^\./##') \
-            | xargs -P 16 -I{} sh -c 'code="$(curl -s -o /dev/null -w "%{http_code}" "$REPOSITORY_URL/{}")"; \
-                [ "$code" = 404 ] || echo "{} $code"' > "$RUNNER_TEMP/existing.txt"
+            | xargs -P 16 -n 1 sh -c 'code="$(curl -s -o /dev/null -w "%{http_code}" "$REPOSITORY_URL/$1")"; \
+                [ "$code" = 404 ] || echo "$1 $code"' _ > "$RUNNER_TEMP/existing.txt"
           if [ -s "$RUNNER_TEMP/existing.txt" ]; then
             cat "$RUNNER_TEMP/existing.txt"
             if [ "$OVERWRITE" != "true" ]; then
