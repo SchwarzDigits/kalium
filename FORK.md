@@ -26,11 +26,14 @@ carry another prefix.
    - Apple builds can leave AVS out (`fix/apple-build-without-avs`).
 
    A change that Wire's release already contains is left out.
-2. **The fork-only commits**, titled `fix(fork): …`. They never go to Wire:
+2. **The fork-only commits**, made on the release branch itself and titled `fix(fork): …`. They never go to Wire:
    - `FORK.md`,
    - the release workflow `.github/workflows/digits-release.yml`,
    - `kalium.disableAppleAvs=true` in `gradle.properties`,
    - the publishing group `kalium.publish.group` in `buildSrc`.
+
+So every commit on a release branch is either a cherry-pick with `-x` (our changes) or fork-only. That is how the next
+release branch finds the fork-only commits (see [A new Wire release](#a-new-wire-release)).
 
 Every other change lives on its `fix/<topic>` branch and goes to Wire only. It reaches our releases with the first Wire
 release that contains it.
@@ -62,6 +65,7 @@ If things go differently:
 - Start change branches from `develop` or from the change they build on, never from a release branch.
 - Never commit to `develop`, and don't force-push a branch with an open pull request without agreeing on it first.
 - Release branches only grow. Never rebase or force-push them.
+- Our changes come onto a release branch only with `git cherry-pick -x`, never as a direct commit.
 - Text in code, changelog fragments and commit messages must be true for Wire's code as well, and names no product or
   customer.
 - Commit and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org/) as
@@ -107,10 +111,13 @@ For Wire's release `v<version>`, with `<previous>` the version of the current re
 git fetch wire tag v<version> --no-tags
 git switch -c digits/<version> v<version>
 git cherry-pick -x <commits>    # our changes from their fix/<topic> branches, oldest first
-git cherry-pick $(git log --reverse --format=%H --no-merges --grep='^fix(fork):' v<previous>..origin/digits/<previous>)
+git cherry-pick $(git log --reverse --format=%H --no-merges --invert-grep \
+  --grep='(cherry picked from commit' v<previous>..origin/digits/<previous>)    # the fork-only commits
 git push origin digits/<version>
 ```
 
+- The fork-only commits are all commits of the previous release branch that are not a cherry-pick with `-x`. Take them
+  over without `-x`, so that they count as fork-only on the new branch as well.
 - Leave out the commits of a change that Wire's release already contains.
 - Never push Wire's tags here.
 - Conflicts in one of our changes: adapt it to Wire's code. If its branch has an open pull request at Wire, that branch
