@@ -60,6 +60,9 @@ internal actual class GlobalCallManager actual constructor(
         ConcurrentHashMap()
     }
 
+    @Volatile
+    private var hasEnabledCallingClient = false
+
     private val calling by lazy {
         Calling.INSTANCE.apply {
             if (CurrentPlatform().type == PlatformType.ANDROID)
@@ -100,6 +103,7 @@ internal actual class GlobalCallManager actual constructor(
         createAndPersistRecentlyEndedCallMetadata: CreateAndPersistRecentlyEndedCallMetadataUseCase
     ): CallManager {
         if (kaliumConfigs.enableCalling) {
+            hasEnabledCallingClient = true
             return callManagerHolder.computeIfAbsent(userId) {
                 CallManagerImpl(
                     calling = calling,
@@ -144,6 +148,10 @@ internal actual class GlobalCallManager actual constructor(
     internal actual fun getMediaManager(): MediaManagerService = mediaManager
 
     actual override fun networkChanged() {
+        if (!hasEnabledCallingClient) {
+            callingLogger.w("Calls disabled by KaliumConfigs.enableCalling=false: networkChanged ignored")
+            return
+        }
         calling.wcall_network_changed()
         callingLogger.i("GlobalCallManager -> wcall_network_changed")
     }
