@@ -33,6 +33,9 @@ if (!disableAppleAvs) {
     apply(plugin = "com.wire.kalium.apple-avs-runtime")
 }
 
+// With kalium.disableAndroidAvs, Android builds don't depend on AVS: calling has to stay off, and nothing loads libavs.so.
+val disableAndroidAvs: Boolean = findProperty("kalium.disableAndroidAvs")?.toString()?.toBoolean() ?: false
+
 kaliumLibrary {
     multiplatform {
         enableJs.set(false)
@@ -171,6 +174,7 @@ kotlin {
         }
         val androidMain by getting {
             addCommonKotlinJvmSourceDir()
+            kotlin.srcDir(if (disableAndroidAvs) "src/androidNoAvsMain/kotlin" else "src/androidAvsMain/kotlin")
             dependencies {
                 implementation(libs.work)
                 if (!useUnifiedCoreCrypto) {

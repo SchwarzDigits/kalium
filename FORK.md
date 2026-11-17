@@ -23,13 +23,14 @@ carry another prefix.
 1. **Our changes**, cherry-picked with `-x` from their `fix/<topic>` branches. Only changes our releases need. Today
    these are:
    - the local databases on Apple platforms are encrypted with SQLCipher (`feat/apple-database-encryption`),
-   - Apple builds can leave AVS out (`fix/apple-build-without-avs`).
+   - Apple builds can leave AVS out (`fix/apple-build-without-avs`),
+   - Android builds can leave AVS out (`fix/android-build-without-avs`). Not submitted to Wire.
 
    A change that Wire's release already contains is left out.
 2. **The fork-only commits**, made on the release branch itself and titled `fix(fork): …`. They never go to Wire:
    - `FORK.md`,
    - the release workflow `.github/workflows/digits-release.yml`,
-   - `kalium.disableAppleAvs=true` in `gradle.properties`,
+   - `kalium.disableAppleAvs=true` and `kalium.disableAndroidAvs=true` in `gradle.properties`,
    - the publishing group `kalium.publish.group` in `buildSrc`.
 
 So every commit on a release branch is either a cherry-pick with `-x` (our changes) or fork-only. That is how the next
@@ -173,15 +174,17 @@ dependencies {
 
 ## Fork-only files
 
-`FORK.md`, `.github/workflows/digits-release.yml` and the line `kalium.disableAppleAvs=true` in `gradle.properties`
-exist only in the release branches. Neither they nor any other `fix(fork):` commit belong on a `fix/<topic>` branch, so
-pull requests to Wire don't carry them. Before opening a pull request at Wire, check the branch:
+`FORK.md`, `.github/workflows/digits-release.yml` and the lines `kalium.disableAppleAvs=true` and
+`kalium.disableAndroidAvs=true` in `gradle.properties` exist only in the release branches. Neither they nor any other
+`fix(fork):` commit belong on a `fix/<topic>` branch, so pull requests to Wire don't carry them. Before opening a pull
+request at Wire, check the branch:
 
 ```sh
 git log --oneline --grep='^fix(fork):' wire/develop..HEAD | grep . && echo "fork-only commit in this branch"
 git diff --name-only wire/develop...HEAD | grep -x -e 'FORK.md' -e '.github/workflows/digits-release.yml' \
   && echo "fork-only file in this branch"
-git diff wire/develop...HEAD -- gradle.properties | grep -x '+kalium.disableAppleAvs=true' && echo "fork-only setting"
+git diff wire/develop...HEAD -- gradle.properties | grep -x -e '+kalium.disableAppleAvs=true' \
+  -e '+kalium.disableAndroidAvs=true' && echo "fork-only setting"
 ```
 
 ## AI coding agents

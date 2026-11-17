@@ -19,7 +19,6 @@
 package com.wire.kalium.logic
 
 import android.content.Context
-import com.waz.audioeffect.AudioEffect
 import com.wire.kalium.logic.data.user.UserId
 import com.wire.kalium.logic.feature.UserSessionScope
 import com.wire.kalium.logic.feature.UserSessionScopeProvider
@@ -129,7 +128,7 @@ public actual class CoreLogic(
 
     public actual override val audioNormalizedLoudnessBuilder: AudioNormalizedLoudnessBuilder = AudioNormalizedLoudnessBuilderImpl(
         dispatcher = KaliumDispatcherImpl.io,
-        audioEffect = AudioEffect(appContext),
+        appContext = appContext,
     )
 }
 

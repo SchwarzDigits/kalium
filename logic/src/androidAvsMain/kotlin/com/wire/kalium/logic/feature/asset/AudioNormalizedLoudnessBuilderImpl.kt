@@ -17,6 +17,7 @@
  */
 package com.wire.kalium.logic.feature.asset
 
+import android.content.Context
 import com.waz.audioeffect.AudioEffect
 import com.wire.kalium.common.logger.kaliumLogger
 import com.wire.kalium.logic.feature.asset.AudioNormalizedLoudnessBuilder.Companion.MAX_SIZE
@@ -29,6 +30,9 @@ internal actual class AudioNormalizedLoudnessBuilderImpl(
     private val dispatcher: CoroutineDispatcher,
     private val audioEffect: AudioEffect,
 ) : AudioNormalizedLoudnessBuilder {
+
+    constructor(dispatcher: CoroutineDispatcher, appContext: Context) : this(dispatcher, AudioEffect(appContext))
+
     /**
      * Note: This UseCase can't be tested as we cannot mock `AudioEffect` from AVS.
      * Generates audio normalized loudness [ByteArray] for the given file path.

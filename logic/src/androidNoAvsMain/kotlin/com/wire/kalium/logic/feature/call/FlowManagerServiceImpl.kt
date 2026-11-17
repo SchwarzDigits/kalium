@@ -1,0 +1,52 @@
+/*
+ * Wire
+ * Copyright (C) 2026 Wire Swiss GmbH
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see http://www.gnu.org/licenses/.
+ */
+package com.wire.kalium.logic.feature.call
+
+import com.wire.kalium.common.logger.kaliumLogger
+import com.wire.kalium.logic.data.id.ConversationId
+import com.wire.kalium.logic.util.PlatformContext
+import com.wire.kalium.logic.util.PlatformRotation
+import com.wire.kalium.logic.util.PlatformView
+import kotlinx.coroutines.CoroutineScope
+
+/** Built with kalium.disableAndroidAvs: there is no AVS flow manager, so video calls are not supported. */
+@Suppress("UnusedPrivateProperty")
+internal actual open class FlowManagerServiceImpl(
+    appContext: PlatformContext,
+    scope: CoroutineScope
+) : FlowManagerService {
+    actual override suspend fun setVideoPreview(conversationId: ConversationId, view: PlatformView) {
+        kaliumLogger.w("setVideoPreview ignored: built without AVS.")
+    }
+
+    actual override suspend fun flipToFrontCamera(conversationId: ConversationId) {
+        kaliumLogger.w("flipToFrontCamera ignored: built without AVS.")
+    }
+
+    actual override suspend fun flipToBackCamera(conversationId: ConversationId) {
+        kaliumLogger.w("flipToBackCamera ignored: built without AVS.")
+    }
+
+    actual override suspend fun setUIRotation(rotation: PlatformRotation) {
+        kaliumLogger.w("setUIRotation ignored: built without AVS.")
+    }
+
+    actual override suspend fun startFlowManager() {
+        kaliumLogger.w("FlowManager not started: built without AVS.")
+    }
+}
